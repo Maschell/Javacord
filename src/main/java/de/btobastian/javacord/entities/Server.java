@@ -210,6 +210,22 @@ public interface Server extends DiscordEntity, IconHolder {
         return getAllowedPermissionsOf(user).containsAll(Arrays.asList(type));
     }
 
+    default CompletableFuture<Void> kickUser(User user){
+        return new RestRequest<Void>(getApi(), HttpMethod.DELETE, RestEndpoint.SERVER_MEMBER)
+                .setUrlParameters(String.valueOf(getId()), String.valueOf(user.getId()))
+                .execute(res -> null);
+    }
+
+    default CompletableFuture<Void> banUser(User user){
+        return banUser(user, 0);
+    }
+
+    default CompletableFuture<Void> banUser(User user, int deleteMessageDays){
+        return new RestRequest<Void>(getApi(), HttpMethod.PUT, RestEndpoint.BANS)
+                .setUrlParameters(String.valueOf(getId()), String.valueOf(user.getId()), String.valueOf(deleteMessageDays))
+                .execute(res -> null);
+    }
+
     /**
      * Changes the nickname of the given user.
      *

@@ -26,6 +26,7 @@ public enum RestEndpoint {
     REACTION("/channels/%s/messages/%s/reactions/%s", 0),
     PINS("/channels/%s/pins", 0),
     SERVER_MEMBER("/guilds/%s/members/%s", 0),
+    BANS("/guilds/%s/bans/%s?delete-message-days=%s", 0),
     OWN_NICKNAME("/guilds/%s/members/@me/nick", 0),
     SELF_INFO("/oauth2/applications/@me");
 
