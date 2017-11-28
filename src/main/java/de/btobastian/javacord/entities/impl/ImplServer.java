@@ -1,6 +1,7 @@
 package de.btobastian.javacord.entities.impl;
 
 import de.btobastian.javacord.DiscordApi;
+import de.btobastian.javacord.ExplicitContentFilterLevel;
 import de.btobastian.javacord.ImplDiscordApi;
 import de.btobastian.javacord.entities.*;
 import de.btobastian.javacord.entities.channels.ChannelCategory;
@@ -65,6 +66,21 @@ public class ImplServer implements Server {
     private long ownerId;
 
     /**
+     * The verification level of the server.
+     */
+    private VerificationLevel verificationLevel;
+
+    /**
+     * The explicit content filter level of the server.
+     */
+    private ExplicitContentFilterLevel explicitContentFilterLevel;
+
+    /**
+     * The default message notification level of the server.
+     */
+    private DefaultMessageNotificationLevel defaultMessageNotificationLevel;
+
+    /**
      * The amount of members in this server.
      */
     private int memberCount = -1;
@@ -73,6 +89,11 @@ public class ImplServer implements Server {
      * The icon id of the server. Might be <code>null</code>.
      */
     private String iconId;
+
+    /**
+     * The splash of the server. Might be <code>null</code>.
+     */
+    private String splash;
 
     /**
      * A map with all roles of the server.
@@ -114,8 +135,15 @@ public class ImplServer implements Server {
         large = data.getBoolean("large");
         memberCount = data.getInt("member_count");
         ownerId = Long.parseLong(data.getString("owner_id"));
+        verificationLevel = VerificationLevel.fromId(data.getInt("verification_level"));
+        explicitContentFilterLevel = ExplicitContentFilterLevel.fromId(data.getInt("explicit_content_filter"));
+        defaultMessageNotificationLevel =
+                DefaultMessageNotificationLevel.fromId(data.getInt("default_message_notifications"));
         if (data.has("icon") && !data.isNull("icon")) {
             iconId = data.getString("icon");
+        }
+        if (data.has("splash") && !data.isNull("splash")) {
+            splash = data.getString("splash");
         }
 
         if (data.has("channels")) {
@@ -429,6 +457,49 @@ public class ImplServer implements Server {
     }
 
     @Override
+    public VerificationLevel getVerificationLevel() {
+        return verificationLevel;
+    }
+
+    @Override
+    public ExplicitContentFilterLevel getExplicitContentFilterLevel() {
+        return explicitContentFilterLevel;
+    }
+
+    @Override
+    public DefaultMessageNotificationLevel getDefaultMessageNotificationLevel() {
+        return defaultMessageNotificationLevel;
+    }
+
+    @Override
+    public Optional<Icon> getIcon() {
+        if (iconId == null) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(new ImplIcon(
+                    getApi(), new URL("https://cdn.discordapp.com/icons/" + getId() + "/" + iconId + ".png")));
+        } catch (MalformedURLException e) {
+            logger.warn("Seems like the url of the icon is malformed! Please contact the developer!", e);
+            return Optional.empty();
+        }
+    }
+
+    @Override
+    public Optional<Icon> getSplash() {
+        if (splash == null) {
+            return Optional.empty();
+        }
+        try {
+            return Optional.of(new ImplIcon(
+                    getApi(), new URL("https://cdn.discordapp.com/splashes/" + getId() + "/" + splash + ".png")));
+        } catch (MalformedURLException e) {
+            logger.warn("Seems like the url of the icon is malformed! Please contact the developer!", e);
+            return Optional.empty();
+        }
+    }
+
+    @Override
     public List<Role> getRoles() {
         return roles.values().stream()
                 .sorted(Comparator.comparingInt(Role::getPosition))
@@ -438,19 +509,6 @@ public class ImplServer implements Server {
     @Override
     public Optional<Role> getRoleById(long id) {
         return Optional.ofNullable(roles.get(id));
-    }
-
-    @Override
-    public Optional<URL> getIconUrl() {
-        if (iconId == null) {
-            return Optional.empty();
-        }
-        try {
-            return Optional.of(new URL("https://cdn.discordapp.com/icons/" + getId() + "/" + iconId + ".png"));
-        } catch (MalformedURLException e) {
-            logger.warn("Seems like the url of the icon is malformed! Please contact the developer!", e);
-            return Optional.empty();
-        }
     }
 
     @Override

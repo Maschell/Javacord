@@ -13,7 +13,11 @@ import java.time.OffsetDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Set;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 /**
@@ -80,6 +84,10 @@ public class RatelimitManager {
         if (!startScheduler) {
             return;
         }
+        int delay = bucket.getTimeTillSpaceGetsAvailable();
+        if (delay > 0) {
+            logger.debug("Delaying requests to {} for {}ms to prevent hitting ratelimits", bucket, delay);
+        }
         // Start a scheduler to work off the queue
         scheduler.schedule(() -> api.getThreadPool().getExecutorService().submit(() -> {
             try {
@@ -90,8 +98,8 @@ public class RatelimitManager {
                             queue.removeIf(req -> {
                                 if (req.incrementRetryCounter()) {
                                     req.getResult().completeExceptionally(
-                                            new RatelimitException("You have been ratelimited and ran out of retires!",
-                                                    null, req)
+                                            new RatelimitException(req.getOrigin(),
+                                                    "You have been ratelimited and ran out of retires!", null, req)
                                     );
                                     return true;
                                 }
@@ -104,32 +112,41 @@ public class RatelimitManager {
                         try {
                             int sleepTime = bucket.getTimeTillSpaceGetsAvailable();
                             if (sleepTime > 0) {
+                                logger.debug("Delaying requests to {} for {}ms to prevent hitting ratelimits", bucket, sleepTime);
                                 Thread.sleep(sleepTime);
                             }
                         } catch (InterruptedException e) {
                             logger.warn("We got interrupted while waiting for a rate limit!", e);
                         }
                     }
-                    RestRequest<?> restRequest = queue.poll();
-                    boolean peek = true;
+                    RestRequest<?> restRequest = queue.peek();
+                    boolean remove = true;
                     try {
                         HttpResponse<JsonNode> response = restRequest.executeBlocking();
 
                         long currentTime = System.currentTimeMillis();
 
+                        if (api.getTimeOffset() == null) {
+                            calculateOffset(currentTime, response);
+                        }
+
                         if (response.getStatus() == 429) {
-                            peek = false;
+                            remove = false;
                             logger.debug("Received a 429 response from Discord! Recalculating time offset...");
                             api.setTimeOffset(null);
 
                             int retryAfter = response.getBody().getObject().getInt("retry_after");
                             bucket.setRateLimitRemaining(0);
-                            bucket.setRateLimitResetTimestamp(System.currentTimeMillis() + retryAfter);
+                            bucket.setRateLimitResetTimestamp(currentTime + retryAfter);
                         } else {
                             restRequest.getResult().complete(response);
 
                             String remaining = response.getHeaders().getFirst("X-RateLimit-Remaining");
-                            String reset = response.getHeaders().getFirst("X-RateLimit-Reset");
+                            long reset = restRequest
+                                    .getEndpoint()
+                                    .getHardcodedRatelimit()
+                                    .map(ratelimit -> currentTime + api.getTimeOffset() + ratelimit)
+                                    .orElseGet(() -> Long.parseLong(response.getHeaders().getFirst("X-RateLimit-Reset")) * 1000);
                             String global = response.getHeaders().getFirst("X-RateLimit-Global");
 
                             if (global != null && global.equals("true")) {
@@ -138,17 +155,13 @@ public class RatelimitManager {
                             }
 
                             bucket.setRateLimitRemaining(Integer.parseInt(remaining));
-                            bucket.setRateLimitResetTimestamp(Long.parseLong(reset) * 1000);
-                        }
-
-                        if (api.getTimeOffset() == null) {
-                            calculateOffset(currentTime, response);
+                            bucket.setRateLimitResetTimestamp(reset);
                         }
                     } catch (Exception e) {
                         restRequest.getResult().completeExceptionally(e);
                     }
-                    if (peek) {
-                        queue.peek();
+                    if (remove) {
+                        queue.remove(restRequest);
                     }
                 }
             } catch (Throwable t) {
@@ -158,7 +171,7 @@ public class RatelimitManager {
                     bucket.setHasActiveScheduler(false);
                 }
             }
-        }), bucket.getTimeTillSpaceGetsAvailable(), TimeUnit.MILLISECONDS);
+        }), delay, TimeUnit.MILLISECONDS);
     }
 
     private void calculateOffset(long currentTime, HttpResponse<?> response) {

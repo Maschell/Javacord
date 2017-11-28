@@ -12,6 +12,7 @@ import de.btobastian.javacord.entities.message.emoji.CustomEmoji;
 import de.btobastian.javacord.entities.message.emoji.Emoji;
 import de.btobastian.javacord.entities.message.impl.ImplMessage;
 import de.btobastian.javacord.entities.permissions.PermissionType;
+import de.btobastian.javacord.entities.permissions.Role;
 import de.btobastian.javacord.listeners.message.MessageDeleteListener;
 import de.btobastian.javacord.listeners.message.MessageEditListener;
 import de.btobastian.javacord.listeners.message.reaction.ReactionAddListener;
@@ -43,7 +44,7 @@ public interface Message extends DiscordEntity, Comparable<Message> {
     static CompletableFuture<Void> delete(DiscordApi api, long channelId, long messageId) {
         return new RestRequest<Void>(api, HttpMethod.DELETE, RestEndpoint.MESSAGE_DELETE)
                 .setUrlParameters(String.valueOf(channelId), String.valueOf(messageId))
-                .setRatelimitRetries(25)
+                .setRatelimitRetries(250)
                 .execute(res -> {
                     api.getCachedMessageById(messageId).ifPresent(msg -> ((ImplMessage) msg).setDeleted(true));
                     return null;
@@ -178,7 +179,7 @@ public interface Message extends DiscordEntity, Comparable<Message> {
     static CompletableFuture<Void> addReaction(DiscordApi api, long channelId, long messageId, String unicodeEmoji) {
         return new RestRequest<Void>(api, HttpMethod.PUT, RestEndpoint.REACTION)
                 .setUrlParameters(String.valueOf(channelId), String.valueOf(messageId), unicodeEmoji, "@me")
-                .setRatelimitRetries(50)
+                .setRatelimitRetries(500)
                 .execute(res -> null);
     }
 
@@ -219,7 +220,7 @@ public interface Message extends DiscordEntity, Comparable<Message> {
         );
         return new RestRequest<Void>(api, HttpMethod.PUT, RestEndpoint.REACTION)
                 .setUrlParameters(String.valueOf(channelId), String.valueOf(messageId), value, "@me")
-                .setRatelimitRetries(50)
+                .setRatelimitRetries(500)
                 .execute(res -> null);
     }
 
@@ -360,22 +361,6 @@ public interface Message extends DiscordEntity, Comparable<Message> {
     List<MessageAttachment> getAttachments();
 
     /**
-     * Gets the display name of the message author, like it's displayed in the client.
-     * For this method it doesn't matter if the author is a webhook or a user.
-     *
-     * @return The display name of the message author.
-     */
-    default String getAuthorDisplayName() {
-        Optional<Server> server = getServer();
-        Optional<User> user = getAuthor();
-        if (user.isPresent()) {
-            return server.map(s -> user.get().getDisplayName(s)).orElseGet(() -> user.get().getName());
-        }
-        // TODO return webhook name
-        return "Webhook";
-    }
-
-    /**
      * Gets the readable content of the message, which replaces all mentions etc. with the actual name.
      * The replacement happens as following:
      * <ul>
@@ -446,11 +431,19 @@ public interface Message extends DiscordEntity, Comparable<Message> {
 
     /**
      * Gets the user author of the message.
-     * The author is not present, if it's a webhook for example.
+     * The author is not present, if it's a webhook.
      *
      * @return The user author of the message.
      */
-    Optional<User> getAuthor();
+    Optional<User> getUserAuthor();
+
+    /**
+     * Gets the author of the message.
+     * Might be a user or a webhook.
+     *
+     * @return The author of the message.
+     */
+    MessageAuthor getAuthor();
 
     /**
      * Checks if the message is kept in cache forever.
@@ -490,6 +483,20 @@ public interface Message extends DiscordEntity, Comparable<Message> {
      * @return A list which contains all reactions of the message.
      */
     List<Reaction> getReactions();
+
+    /**
+     * Gets a list with all users mentioned in this message.
+     *
+     * @return A list with all users mentioned in this message.
+     */
+    List<User> getMentionedUsers();
+
+    /**
+     * Gets a list with all roles mentioned in this message.
+     *
+     * @return A list with all roles mentioned in this message.
+     */
+    List<Role> getMentionedRoles();
 
     /**
      * Gets a reaction by it's emoji.

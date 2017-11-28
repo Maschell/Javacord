@@ -4,13 +4,11 @@ import de.btobastian.javacord.DiscordApi;
 import de.btobastian.javacord.ImplDiscordApi;
 import de.btobastian.javacord.entities.User;
 import de.btobastian.javacord.entities.channels.TextChannel;
-import de.btobastian.javacord.entities.message.Message;
-import de.btobastian.javacord.entities.message.MessageAttachment;
-import de.btobastian.javacord.entities.message.MessageType;
-import de.btobastian.javacord.entities.message.Reaction;
+import de.btobastian.javacord.entities.message.*;
 import de.btobastian.javacord.entities.message.embed.Embed;
 import de.btobastian.javacord.entities.message.embed.impl.ImplEmbed;
 import de.btobastian.javacord.entities.message.emoji.Emoji;
+import de.btobastian.javacord.entities.permissions.Role;
 import de.btobastian.javacord.utils.cache.ImplMessageCache;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -58,9 +56,9 @@ public class ImplMessage implements Message {
     private Instant lastEditTime = null;
 
     /**
-     * The user author of the message. Can be <code>null</code> if the author is a webhook for example.
+     * The author of the message.
      */
-    private final User userAuthor;
+    private final MessageAuthor author;
 
     /**
      * If the message should be cached forever or not.
@@ -98,6 +96,16 @@ public class ImplMessage implements Message {
     private List<MessageAttachment> attachments = new ArrayList<>();
 
     /**
+     * The users mentioned in this message.
+     */
+    private List<User> mentions = new ArrayList<>();
+
+    /**
+     * The roles mentioned in this message.
+     */
+    private List<Role> roleMentions = new ArrayList<>();
+
+    /**
      * Creates a new message object.
      *
      * @param api The discord api instance.
@@ -115,11 +123,9 @@ public class ImplMessage implements Message {
                 OffsetDateTime.parse(data.getString("edited_timestamp")).toInstant() : null;
 
         type = MessageType.byType(data.getInt("type"), data.has("webhook_id"));
-        if (!data.has("webhook_id")) {
-            userAuthor = api.getOrCreateUser(data.getJSONObject("author"));
-        } else {
-            userAuthor = null;
-        }
+
+        Long webhookId = data.has("webhook_id") ? Long.parseLong(data.getString("webhook_id")) : null;
+        author = new ImplMessageAuthor(this, webhookId, data.getJSONObject("author"));
 
         ImplMessageCache cache = (ImplMessageCache) channel.getMessageCache();
         cache.addMessage(this);
@@ -141,6 +147,20 @@ public class ImplMessage implements Message {
             MessageAttachment attachment = new ImplMessageAttachment(this, attachmentsJson.getJSONObject(i));
             attachments.add(attachment);
         }
+
+        JSONArray mentionsJson = data.getJSONArray("mentions");
+        for (int i = 0; i < mentionsJson.length(); i++) {
+            User user = api.getOrCreateUser(mentionsJson.getJSONObject(i));
+            mentions.add(user);
+        }
+
+        getServer().ifPresent(server -> {
+            JSONArray roleMentionsJson = data.has("mention_roles") && !data.isNull("mention_roles") ?
+                    data.getJSONArray("mention_roles") : new JSONArray();
+            for (int i = 0; i < roleMentionsJson.length(); i++) {
+                server.getRoleById(roleMentionsJson.getString(i)).ifPresent(roleMentions::add);
+            }
+        });
     }
 
     /**
@@ -269,8 +289,13 @@ public class ImplMessage implements Message {
     }
 
     @Override
-    public Optional<User> getAuthor() {
-        return Optional.ofNullable(userAuthor);
+    public MessageAuthor getAuthor() {
+        return author;
+    }
+
+    @Override
+    public Optional<User> getUserAuthor() {
+        return author.asUser();
     }
 
     @Override
@@ -295,6 +320,16 @@ public class ImplMessage implements Message {
     @Override
     public List<Reaction> getReactions() {
         return new ArrayList<>(reactions);
+    }
+
+    @Override
+    public List<User> getMentionedUsers() {
+        return mentions;
+    }
+
+    @Override
+    public List<Role> getMentionedRoles() {
+        return roleMentions;
     }
 
     @Override

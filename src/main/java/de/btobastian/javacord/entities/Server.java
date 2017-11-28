@@ -1,9 +1,12 @@
 package de.btobastian.javacord.entities;
 
 import com.mashape.unirest.http.HttpMethod;
+import de.btobastian.javacord.ExplicitContentFilterLevel;
 import de.btobastian.javacord.ImplDiscordApi;
 import de.btobastian.javacord.entities.channels.*;
+import de.btobastian.javacord.entities.impl.ImplInvite;
 import de.btobastian.javacord.entities.impl.ImplServer;
+import de.btobastian.javacord.entities.impl.ImplWebhook;
 import de.btobastian.javacord.entities.message.emoji.CustomEmoji;
 import de.btobastian.javacord.entities.permissions.*;
 import de.btobastian.javacord.listeners.message.MessageCreateListener;
@@ -24,6 +27,7 @@ import de.btobastian.javacord.listeners.user.UserChangeStatusListener;
 import de.btobastian.javacord.listeners.user.UserStartTypingListener;
 import de.btobastian.javacord.utils.rest.RestEndpoint;
 import de.btobastian.javacord.utils.rest.RestRequest;
+import org.json.JSONArray;
 import org.json.JSONObject;
 
 import java.util.*;
@@ -33,7 +37,7 @@ import java.util.stream.Collectors;
 /**
  * The class represents a Discord server, sometimes also called guild.
  */
-public interface Server extends DiscordEntity, IconHolder {
+public interface Server extends DiscordEntity {
 
     /**
      * Gets the name of the server.
@@ -84,6 +88,59 @@ public interface Server extends DiscordEntity, IconHolder {
      * @return The owner of the server.
      */
     User getOwner();
+
+    /**
+     * Gets the verification level of the server.
+     *
+     * @return The verification level of the server.
+     */
+    VerificationLevel getVerificationLevel();
+
+    /**
+     * Gets the explicit content filter level of the server.
+     *
+     * @return The explicit content filter level of the server.
+     */
+    ExplicitContentFilterLevel getExplicitContentFilterLevel();
+
+    /**
+     * Gets the default message notification level of the server.
+     *
+     * @return The default message notification level of the server.
+     */
+    DefaultMessageNotificationLevel getDefaultMessageNotificationLevel();
+
+    /**
+     * Gets the icon of the server.
+     *
+     * @return The icon of the server.
+     */
+    Optional<Icon> getIcon();
+
+    /**
+     * Gets the splash of the server.
+     *
+     * @return The splash of the server.
+     */
+    Optional<Icon> getSplash();
+
+    /**
+     * Gets the invites of the server.
+     *
+     * @return The invites of the server.
+     */
+    default CompletableFuture<Collection<RichInvite>> getInvites() {
+        return new RestRequest<Collection<RichInvite>>(getApi(), HttpMethod.GET, RestEndpoint.SERVER_INVITE)
+                .setUrlParameters(getIdAsString())
+                .execute(res -> {
+                    Collection<RichInvite> invites = new HashSet<>();
+                    JSONArray invitesJson = res.getBody().getArray();
+                    for (int i = 0; i < invitesJson.length(); i++) {
+                        invites.add(new ImplInvite(getApi(), invitesJson.getJSONObject(i)));
+                    }
+                    return invites;
+                });
+    }
 
     /**
      * Gets a sorted list (by position) with all roles of the server.
@@ -293,6 +350,24 @@ public interface Server extends DiscordEntity, IconHolder {
                 .setBody(new JSONObject()
                         .put("owner_id", newOwner == null ? JSONObject.NULL : String.valueOf(newOwner.getId())))
                 .execute(res -> null);
+    }
+
+    /**
+     * Gets a list of all webhooks in this server.
+     *
+     * @return A list of all webhooks in this server.
+     */
+    default CompletableFuture<List<Webhook>> getWebhooks() {
+        return new RestRequest<List<Webhook>>(getApi(), HttpMethod.GET, RestEndpoint.SERVER_WEBHOOK)
+                .setUrlParameters(getIdAsString())
+                .execute(res -> {
+                    List<Webhook> webhooks = new ArrayList<>();
+                    JSONArray webhooksJson = res.getBody().getArray();
+                    for (int i = 0; i < webhooksJson.length(); i++) {
+                        webhooks.add(new ImplWebhook(getApi(), webhooksJson.getJSONObject(i)));
+                    }
+                    return webhooks;
+                });
     }
 
     /**
@@ -1091,6 +1166,26 @@ public interface Server extends DiscordEntity, IconHolder {
      */
     default List<UserChangeNicknameListener> getUserChangeNicknameListeners() {
         return ((ImplDiscordApi) getApi()).getObjectListeners(Server.class, getId(), UserChangeNicknameListener.class);
+    }
+
+    /**
+     * Adds a listener, which listens to server text channel topic changes in this server.
+     *
+     * @param listener The listener to add.
+     */
+    default void addServerTextChannelChangeTopicListener(ServerTextChannelChangeTopicListener listener) {
+        ((ImplDiscordApi) getApi()).addObjectListener(
+                Server.class, getId(), ServerTextChannelChangeTopicListener.class, listener);
+    }
+
+    /**
+     * Gets a list with all registered server text channel change topic listeners.
+     *
+     * @return A list with all registered server text channel change topic listeners.
+     */
+    default List<ServerTextChannelChangeTopicListener> getServerTextChannelChangeTopicListeners() {
+        return ((ImplDiscordApi) getApi())
+                .getObjectListeners(Server.class, getId(), ServerTextChannelChangeTopicListener.class);
     }
 
 }

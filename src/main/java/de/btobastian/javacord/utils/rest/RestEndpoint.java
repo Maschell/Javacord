@@ -18,16 +18,23 @@ public enum RestEndpoint {
     MESSAGE_DELETE("/channels/%s/messages", 0),
     MESSAGES_BULK_DELETE("/channels/%s/messages/bulk-delete", 0),
     CHANNEL_TYPING("/channels/%s/typing", 0),
+    CHANNEL_INVITE("/channels/%s/invites", 0),
     USER_CHANNEL("/users/@me/channels"),
     CHANNEL("/channels/%s", 0),
     ROLE("/guilds/%s/roles/%s", 0),
     SERVER("/guilds/%s", 0),
     SERVER_CHANNEL("/guilds/%s/channels", 0),
-    REACTION("/channels/%s/messages/%s/reactions/%s", 0),
+    // hardcoded reactions ratelimit due to https://github.com/discordapp/discord-api-docs/issues/182
+    REACTION("/channels/%s/messages/%s/reactions/%s", 0, 250),
     PINS("/channels/%s/pins", 0),
     SERVER_MEMBER("/guilds/%s/members/%s", 0),
     OWN_NICKNAME("/guilds/%s/members/@me/nick", 0),
-    SELF_INFO("/oauth2/applications/@me");
+    SELF_INFO("/oauth2/applications/@me"),
+    CHANNEL_WEBHOOK("/channels/%s/webhooks", 0),
+    SERVER_WEBHOOK("/guilds/%s/webhooks", 0),
+    SERVER_INVITE("/guilds/%s/invites", 0),
+    WEBHOOK("/webhooks/%s"),
+    INVITE("/invites/%s");
 
     /**
      * The endpoint url (only including the base, not the https://discordapp.com/api/vXYZ/ "prefix".
@@ -44,22 +51,36 @@ public enum RestEndpoint {
      */
     private boolean global;
 
+    /**
+     * The position of the major parameter starting with <code>0</code> or <code>-1</code> if no major parameter exists.
+     */
+    private final int hardcodedRatelimit;
+
     RestEndpoint(String endpointUrl) {
-        this(endpointUrl, -1, false);
+        this(endpointUrl, -1, false, -1);
     }
 
     RestEndpoint(String endpointUrl, boolean global) {
-        this(endpointUrl, -1, global);
+        this(endpointUrl, -1, global, -1);
     }
 
     RestEndpoint(String endpointUrl, int majorParameterPosition) {
-        this(endpointUrl, majorParameterPosition, false);
+        this(endpointUrl, majorParameterPosition, false, -1);
+    }
+
+    RestEndpoint(String endpointUrl, int majorParameterPosition, int hardcodedRatelimit) {
+        this(endpointUrl, majorParameterPosition, false, hardcodedRatelimit);
     }
 
     RestEndpoint(String endpointUrl, int majorParameterPosition, boolean global) {
+        this(endpointUrl, majorParameterPosition, false, -1);
+    }
+
+    RestEndpoint(String endpointUrl, int majorParameterPosition, boolean global, int hardcodedRatelimit) {
         this.endpointUrl = endpointUrl;
         this.majorParameterPosition = majorParameterPosition;
         this.global = global;
+        this.hardcodedRatelimit = hardcodedRatelimit;
     }
 
     /**
@@ -101,6 +122,18 @@ public enum RestEndpoint {
      */
     public void setGlobal(boolean global) {
         this.global = global;
+    }
+
+    /**
+     * Gets the hardcoded ratelimit if one is set.
+     *
+     * @return An optional which is present, if the endpoint has a hardcoded ratelimit.
+     */
+    public Optional<Integer> getHardcodedRatelimit() {
+        if (hardcodedRatelimit >= 0) {
+            return Optional.of(hardcodedRatelimit);
+        }
+        return Optional.empty();
     }
 
     /**
