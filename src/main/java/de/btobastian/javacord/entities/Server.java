@@ -327,6 +327,13 @@ public interface Server extends DiscordEntity {
                 .execute(res -> null);
     }
 
+    default CompletableFuture<Void> updateRoles(User user, Collection<Role> roles){
+        return new RestRequest<Void>(getApi(), HttpMethod.PATCH, RestEndpoint.SERVER_MEMBER)
+                .setUrlParameters(String.valueOf(getId()), String.valueOf(user.getId()))
+                .setBody(new JSONObject().put("roles", roles.stream().map(Role::getId).map(String::valueOf).toArray()))
+                .execute(res -> null);
+    }
+
     /**
      * Updates the region of the server.
      *
