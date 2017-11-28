@@ -4,10 +4,15 @@ import com.mashape.unirest.http.HttpMethod;
 import de.btobastian.javacord.entities.*;
 import de.btobastian.javacord.entities.channels.*;
 import de.btobastian.javacord.entities.impl.ImplApplicationInfo;
+import de.btobastian.javacord.entities.impl.ImplInvite;
+import de.btobastian.javacord.entities.impl.ImplWebhook;
 import de.btobastian.javacord.entities.message.Message;
 import de.btobastian.javacord.entities.message.emoji.CustomEmoji;
 import de.btobastian.javacord.entities.permissions.Permissions;
 import de.btobastian.javacord.entities.permissions.Role;
+import de.btobastian.javacord.listeners.connection.LostConnectionListener;
+import de.btobastian.javacord.listeners.connection.ReconnectListener;
+import de.btobastian.javacord.listeners.connection.ResumeListener;
 import de.btobastian.javacord.listeners.message.MessageCreateListener;
 import de.btobastian.javacord.listeners.message.MessageDeleteListener;
 import de.btobastian.javacord.listeners.message.MessageEditListener;
@@ -96,7 +101,7 @@ public interface DiscordApi {
      * Sets the cache size of all caches.
      * This settings are applied on a per-channel basis.
      * It overrides all previous settings, so it's recommended to directly set it after logging in, if you want to
-     * change apply some channel specific channel settings, too.
+     * change some channel specific cache settings, too.
      * Please notice that the cache is cleared only once every minute!
      *
      * @param capacity The capacity of the message cache.
@@ -189,7 +194,7 @@ public interface DiscordApi {
      *                               attempt. By default the function reconnect delay is calculated using the following
      *                               equation: <code>f(x): (x^1.5-(1/(1/(0.1*x)+1))*x^1.5)*shardCount</code>.
      *                               This would result in a delay which looks like this for a bot with 1 shard:
-     *                               <table>
+     *                               <table summary="">
      *                                  <tr>
      *                                      <th>Attempt</th>
      *                                      <th>Delay</th>
@@ -235,11 +240,35 @@ public interface DiscordApi {
     }
 
     /**
+     * Gets a webhook by it's id.
+     *
+     * @param id The id of the webhook.
+     * @return The webhook with the given id.
+     */
+    default CompletableFuture<Webhook> getWebhookById(long id) {
+        return new RestRequest<Webhook>(this, HttpMethod.GET, RestEndpoint.WEBHOOK)
+                .setUrlParameters(String.valueOf(id))
+                .execute(res -> new ImplWebhook(this, res.getBody().getObject()));
+    }
+
+    /**
      * Gets a collection with the ids of all unavailable servers.
      *
      * @return A collection with the ids of all unavailable servers.
      */
     Collection<Long> getUnavailableServers();
+
+    /**
+     * Gets an invite by it's code.
+     *
+     * @param code The code of the invite.
+     * @return The invite with the given code.
+     */
+    default CompletableFuture<Invite> getInviteByCode(String code) {
+        return new RestRequest<Invite>(this, HttpMethod.GET, RestEndpoint.INVITE)
+                .setUrlParameters(code)
+                .execute(res -> new ImplInvite(this, res.getBody().getObject()));
+    }
 
     /**
      * Gets a collection with all users the bot knows of.
@@ -1694,5 +1723,61 @@ public interface DiscordApi {
      * @return A list with all registered user change nickname listeners.
      */
     List<UserChangeNicknameListener> getUserChangeNicknameListeners();
+
+    /**
+     * Adds a listener, which listens to connection losses.
+     *
+     * @param listener The listener to add.
+     */
+    void addLostConnectionListener(LostConnectionListener listener);
+
+    /**
+     * Gets a list with all registered lost connection listeners.
+     *
+     * @return A list with all registered lost connection listeners.
+     */
+    List<LostConnectionListener> getLostConnectionListeners();
+
+    /**
+     * Adds a listener, which listens to reconnects.
+     *
+     * @param listener The listener to add.
+     */
+    void addReconnectListener(ReconnectListener listener);
+
+    /**
+     * Gets a list with all registered reconnect listeners.
+     *
+     * @return A list with all registered reconnect listeners.
+     */
+    List<ReconnectListener> getReconnectListeners();
+
+    /**
+     * Adds a listener, which listens to resumes.
+     *
+     * @param listener The listener to add.
+     */
+    void addResumeListener(ResumeListener listener);
+
+    /**
+     * Gets a list with all registered resume listeners.
+     *
+     * @return A list with all registered resume listeners.
+     */
+    List<ResumeListener> getResumeListeners();
+
+    /**
+     * Adds a listener, which listens to server text channel topic changes.
+     *
+     * @param listener The listener to add.
+     */
+    void addServerTextChannelChangeTopicListener(ServerTextChannelChangeTopicListener listener);
+
+    /**
+     * Gets a list with all registered server text channel change topic listeners.
+     *
+     * @return A list with all registered server text channel change topic listeners.
+     */
+    List<ServerTextChannelChangeTopicListener> getServerTextChannelChangeTopicListeners();
 
 }
