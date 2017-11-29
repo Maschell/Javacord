@@ -284,8 +284,12 @@ public interface Server extends DiscordEntity {
     }
 
     default CompletableFuture<Void> unBanUser(User user) {
+        return unBanUser(user.getId());
+    }
+
+    default CompletableFuture<Void> unBanUser(long id) {
         return new RestRequest<Void>(getApi(), HttpMethod.DELETE, RestEndpoint.REMOVE_BAN)
-                .setUrlParameters(String.valueOf(getId()), String.valueOf(user.getId()))
+                .setUrlParameters(String.valueOf(getId()), String.valueOf(id))
                 .execute(res -> null);
     }
 
