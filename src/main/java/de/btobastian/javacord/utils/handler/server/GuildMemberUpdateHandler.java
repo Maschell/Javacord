@@ -45,8 +45,6 @@ import de.btobastian.javacord.utils.logging.LoggerUtil;
  */
 public class GuildMemberUpdateHandler extends PacketHandler {
 
-    private static final Logger logger = LoggerUtil.getLogger(GuildMemberUpdateHandler.class);
-
     /**
      * Creates a new instance of this class.
      *
