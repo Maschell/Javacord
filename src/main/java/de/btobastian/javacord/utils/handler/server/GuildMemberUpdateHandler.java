@@ -18,27 +18,40 @@
  */
 package de.btobastian.javacord.utils.handler.server;
 
-import de.btobastian.javacord.DiscordApi;
-import de.btobastian.javacord.entities.User;
-import de.btobastian.javacord.entities.impl.ImplServer;
-import de.btobastian.javacord.events.user.UserChangeNicknameEvent;
-import de.btobastian.javacord.listeners.user.UserChangeNicknameListener;
-import de.btobastian.javacord.utils.PacketHandler;
-import org.json.JSONObject;
-
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.slf4j.Logger;
+
+import de.btobastian.javacord.DiscordApi;
+import de.btobastian.javacord.entities.User;
+import de.btobastian.javacord.entities.impl.ImplServer;
+import de.btobastian.javacord.entities.permissions.Role;
+import de.btobastian.javacord.entities.permissions.impl.ImplRole;
+import de.btobastian.javacord.events.server.role.UserRoleAddEvent;
+import de.btobastian.javacord.events.server.role.UserRoleRemoveEvent;
+import de.btobastian.javacord.events.user.UserChangeNicknameEvent;
+import de.btobastian.javacord.listeners.server.role.UserRoleAddListener;
+import de.btobastian.javacord.listeners.server.role.UserRoleRemoveListener;
+import de.btobastian.javacord.listeners.user.UserChangeNicknameListener;
+import de.btobastian.javacord.utils.PacketHandler;
+import de.btobastian.javacord.utils.logging.LoggerUtil;
 
 /**
  * Handles the guild member update packet.
  */
 public class GuildMemberUpdateHandler extends PacketHandler {
 
+    private static final Logger logger = LoggerUtil.getLogger(GuildMemberUpdateHandler.class);
+
     /**
      * Creates a new instance of this class.
      *
-     * @param api The api.
+     * @param api
+     *            The api.
      */
     public GuildMemberUpdateHandler(DiscordApi api) {
         super(api, true, "GUILD_MEMBER_UPDATE");
@@ -48,14 +61,14 @@ public class GuildMemberUpdateHandler extends PacketHandler {
     public void handle(JSONObject packet) {
         api.getServerById(packet.getString("guild_id")).map(server -> (ImplServer) server).ifPresent(server -> {
             User user = api.getOrCreateUser(packet.getJSONObject("user"));
+
             if (packet.has("nick")) {
                 String newNickname = packet.optString("nick", null);
                 String oldNickname = server.getNickname(user).orElse(null);
                 if (!Objects.deepEquals(newNickname, oldNickname)) {
                     server.setNickname(user, newNickname);
 
-                    UserChangeNicknameEvent event =
-                            new UserChangeNicknameEvent(api, user, server, newNickname, oldNickname);
+                    UserChangeNicknameEvent event = new UserChangeNicknameEvent(api, user, server, newNickname, oldNickname);
 
                     List<UserChangeNicknameListener> listeners = new ArrayList<>();
                     listeners.addAll(user.getUserChangeNicknameListeners());
@@ -63,6 +76,65 @@ public class GuildMemberUpdateHandler extends PacketHandler {
                     listeners.addAll(api.getUserChangeNicknameListeners());
 
                     dispatchEvent(listeners, listener -> listener.onUserChangeNickname(event));
+                }
+            }
+            // get array with all roles
+            JSONArray jsonRoles = packet.getJSONArray("roles");
+            Role[] roles = new Role[jsonRoles.length()];
+            for (int i = 0; i < jsonRoles.length(); i++) {
+                roles[i] = server.getRoleById(jsonRoles.getString(i)).get();
+            }
+
+            // iterate throw all current roles and remove roles which aren't in the roles array
+            for (final Role role : user.getRoles(server)) {
+                boolean contains = false;
+                for (Role r : roles) {
+                    if (role == r) {
+                        contains = true;
+                        break;
+                    }
+                }
+                if (!contains) {
+                    ((ImplRole) role).removeUserFromCache(user);
+                    api.getThreadPool().getSingleThreadExecutorService("listeners").submit(new Runnable() {
+                        @Override
+                        public void run() {
+                            UserRoleRemoveEvent event = new UserRoleRemoveEvent(api, role, user);
+                            List<UserRoleRemoveListener> listeners = api.getUserRoleRemoveListener();
+                            synchronized (listeners) {
+                                for (UserRoleRemoveListener listener : listeners) {
+                                    try {
+                                        listener.onUserRoleRemove(event);
+                                    } catch (Throwable t) {
+                                        logger.warn("Uncaught exception in UserRoleRemoveListenerListener!", t);
+                                    }
+                                }
+                            }
+                        }
+                    });
+                }
+            }
+
+            // iterate through all roles of the roles array and add roles which aren't in the current roles list
+            for (final Role role : roles) {
+                if (!user.getRoles(server).contains(role)) {
+                    ((ImplRole) role).addUserToCache(user);
+                    api.getThreadPool().getSingleThreadExecutorService("listeners").submit(new Runnable() {
+                        @Override
+                        public void run() {
+                            UserRoleAddEvent event = new UserRoleAddEvent(api, role, user);
+                            List<UserRoleAddListener> listeners = api.getUserRoleAddListener();
+                            synchronized (listeners) {
+                                for (UserRoleAddListener listener : listeners) {
+                                    try {
+                                        listener.onUserRoleAdd(event);
+                                    } catch (Throwable t) {
+                                        logger.warn("Uncaught exception in UserRoleAddListener!", t);
+                                    }
+                                }
+                            }
+                        }
+                    });
                 }
             }
         });

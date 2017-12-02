@@ -28,6 +28,8 @@ import de.btobastian.javacord.listeners.server.role.RoleChangePermissionsListene
 import de.btobastian.javacord.listeners.server.role.RoleChangePositionListener;
 import de.btobastian.javacord.listeners.server.role.RoleCreateListener;
 import de.btobastian.javacord.listeners.server.role.RoleDeleteListener;
+import de.btobastian.javacord.listeners.server.role.UserRoleAddListener;
+import de.btobastian.javacord.listeners.server.role.UserRoleRemoveListener;
 import de.btobastian.javacord.listeners.user.UserChangeGameListener;
 import de.btobastian.javacord.listeners.user.UserChangeNicknameListener;
 import de.btobastian.javacord.listeners.user.UserChangeStatusListener;
@@ -900,6 +902,17 @@ public class ImplDiscordApi implements DiscordApi {
     public List<RoleDeleteListener> getRoleDeleteListeners() {
         return getListeners(RoleDeleteListener.class);
     }
+    
+    @Override
+    public List<UserRoleRemoveListener> getUserRoleRemoveListener() {
+        return getListeners(UserRoleRemoveListener.class);
+    }
+    
+    @Override
+    public List<UserRoleAddListener> getUserRoleAddListener() {
+        return getListeners(UserRoleAddListener.class);
+    }
+    
 
     @Override
     public void addUserChangeNicknameListener(UserChangeNicknameListener listener) {
