@@ -1711,9 +1711,33 @@ public interface DiscordApi {
      * @return A list with all registered role delete listeners.
      */
     List<RoleDeleteListener> getRoleDeleteListeners();
+    
+    /**
+     * Adds a listener, which listens to roles that get removed from users.
+     *
+     * @param listener The listener to add.
+     */    
+    void addUserRoleRemoveListener(UserRoleRemoveListener listener);
        
+    /**
+     * Gets a list with all registered user role remove listeners.
+     *
+     * @return A list with all registered user role remove listeners.
+     */
     List<UserRoleRemoveListener> getUserRoleRemoveListener();
     
+    /**
+     * Adds a listener, which listens to roles that get added to users.
+     *
+     * @param listener The listener to add.
+     */    
+    void addUserRoleAddListener(UserRoleAddListener listener);
+    
+    /**
+     * Gets a list with all registered user role add listeners.
+     *
+     * @return A list with all registered user role add listeners.
+     */
     List<UserRoleAddListener> getUserRoleAddListener();
 
     /**

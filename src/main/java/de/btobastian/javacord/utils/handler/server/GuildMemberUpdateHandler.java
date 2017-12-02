@@ -84,9 +84,10 @@ public class GuildMemberUpdateHandler extends PacketHandler {
             for (int i = 0; i < jsonRoles.length(); i++) {
                 roles[i] = server.getRoleById(jsonRoles.getString(i)).get();
             }
-
+            
             // iterate throw all current roles and remove roles which aren't in the roles array
             for (final Role role : user.getRoles(server)) {
+                if (role.getName().equals("@everyone")) continue;
                 boolean contains = false;
                 for (Role r : roles) {
                     if (role == r) {
@@ -96,22 +97,9 @@ public class GuildMemberUpdateHandler extends PacketHandler {
                 }
                 if (!contains) {
                     ((ImplRole) role).removeUserFromCache(user);
-                    api.getThreadPool().getSingleThreadExecutorService("listeners").submit(new Runnable() {
-                        @Override
-                        public void run() {
-                            UserRoleRemoveEvent event = new UserRoleRemoveEvent(api, role, user);
-                            List<UserRoleRemoveListener> listeners = api.getUserRoleRemoveListener();
-                            synchronized (listeners) {
-                                for (UserRoleRemoveListener listener : listeners) {
-                                    try {
-                                        listener.onUserRoleRemove(event);
-                                    } catch (Throwable t) {
-                                        logger.warn("Uncaught exception in UserRoleRemoveListenerListener!", t);
-                                    }
-                                }
-                            }
-                        }
-                    });
+                    UserRoleRemoveEvent event = new UserRoleRemoveEvent(api, role, user);
+                    List<UserRoleRemoveListener> listeners = api.getUserRoleRemoveListener();
+                    dispatchEvent(listeners, listener -> listener.onUserRoleRemove(event));
                 }
             }
 
@@ -119,22 +107,10 @@ public class GuildMemberUpdateHandler extends PacketHandler {
             for (final Role role : roles) {
                 if (!user.getRoles(server).contains(role)) {
                     ((ImplRole) role).addUserToCache(user);
-                    api.getThreadPool().getSingleThreadExecutorService("listeners").submit(new Runnable() {
-                        @Override
-                        public void run() {
-                            UserRoleAddEvent event = new UserRoleAddEvent(api, role, user);
-                            List<UserRoleAddListener> listeners = api.getUserRoleAddListener();
-                            synchronized (listeners) {
-                                for (UserRoleAddListener listener : listeners) {
-                                    try {
-                                        listener.onUserRoleAdd(event);
-                                    } catch (Throwable t) {
-                                        logger.warn("Uncaught exception in UserRoleAddListener!", t);
-                                    }
-                                }
-                            }
-                        }
-                    });
+                    UserRoleAddEvent event = new UserRoleAddEvent(api, role, user);
+                    List<UserRoleAddListener> listeners = api.getUserRoleAddListener();
+                    dispatchEvent(listeners, listener -> listener.onUserRoleAdd(event));
+
                 }
             }
         });
